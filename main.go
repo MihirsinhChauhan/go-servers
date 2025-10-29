@@ -102,7 +102,7 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 }
 
 
-// POST /api/validate_chirp
+// POST /api/chirps
 func (cfg *apiConfig) handlerCreateChirps(w http.ResponseWriter, r *http.Request) {
 	// only Post
 	if r.Method != http.MethodPost {
@@ -153,6 +153,39 @@ func (cfg *apiConfig) handlerCreateChirps(w http.ResponseWriter, r *http.Request
 
 
 }
+
+// GET /api/chirps
+
+func (cfg *apiConfig) handlerGetAllChirps(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		respondWithError(w, http.StatusMethodNotAllowed, "Method Not Allowed")
+        return
+	}
+
+	ctx:= context.Background()
+
+	dbChirps, err:= cfg.DB.GetAllChirps(ctx)
+	if err != nil {
+        respondWithError(w, http.StatusInternalServerError, "Failed to retrieve chirps")
+        return
+    }
+	chirps := make([]ChirpsResponse, len(dbChirps))
+	for i, c := range dbChirps {
+        chirps[i] = ChirpsResponse{
+            ID:        c.ID,
+            CreatedAt: c.CreatedAt.Format(time.RFC3339),
+            UpdatedAt: c.UpdatedAt.Format(time.RFC3339),
+            Body:      c.Body,
+            UserID:    c.UserID,
+        }
+    }
+
+    respondWithJSON(w, http.StatusOK, chirps)
+
+
+}
+
+// helper
 func cleanProfanity(s string) string {
 	profane := map[string]bool{
 		"kerfuffle": true,
@@ -310,8 +343,10 @@ func main() {
 	// Register the /reset endpoint
 	mux.HandleFunc("POST /admin/reset", apiCfg.handlerReset)
 
-	// Register /validate_chirp endpoint
+	// Register /chirps endpoint
 	mux.HandleFunc("POST /api/chirps", apiCfg.handlerCreateChirps)
+	mux.HandleFunc("GET /api/chirps", apiCfg.handlerGetAllChirps)
+
 	mux.HandleFunc("POST /api/users", apiCfg.handlerCreateUser)
 
 	// Create a new Server with the mux as handler and address set to :8080
