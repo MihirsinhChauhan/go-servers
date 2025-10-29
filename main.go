@@ -28,15 +28,6 @@ type apiConfig struct {
 	Platform		string
 }
 
-// request / response types
-type ValidateChirpRequest struct {
-	Body string `json:"body"`
-}
-
-type ValidateChirpValidResponse struct {
-	Valid bool `json:"valid"`
-}
-
 type ErrorResponse struct {
 	Error string `json:"error"`
 }
@@ -56,6 +47,19 @@ type CreateUserResponse struct {
 	CreatedAt string `json:"created_at"`
 	UpdatedAt string `json:"updated_at"`
 
+}
+
+type ChirpsRequest struct {
+	Body string `json:"body"`
+	UserID uuid.UUID `json:"user_id"`
+}
+
+type ChirpsResponse struct {
+	ID uuid.UUID `json:"id"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
+	Body string `json:"body"`
+	UserID uuid.UUID `json:"user_id"`
 }
 
 // Post /api/user - creat user via sqlc
@@ -99,7 +103,7 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 
 
 // POST /api/validate_chirp
-func (cfg *apiConfig) handlerValidatecChirp(w http.ResponseWriter, r *http.Request) {
+func (cfg *apiConfig) handlerCreateChirps(w http.ResponseWriter, r *http.Request) {
 	// only Post
 	if r.Method != http.MethodPost {
 		respondWithError(w, http.StatusMethodNotAllowed, "Method Not Allowed")
@@ -107,7 +111,7 @@ func (cfg *apiConfig) handlerValidatecChirp(w http.ResponseWriter, r *http.Reque
 	}
 
 	// decode json body
-	var req ValidateChirpRequest
+	var req ChirpsRequest
 	decoder := 	json.NewDecoder(r.Body)
 	
 
@@ -122,9 +126,31 @@ func (cfg *apiConfig) handlerValidatecChirp(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	cleaned := cleanProfanity(req.Body)
-	// valid chirp
-	respondWithJSON(w,http.StatusOK, CleanedChirpResponse{CleanedBody: cleaned}) 
+	cleanedBody := cleanProfanity(req.Body)
+
+	ctx:= context.Background()
+
+	chirps, err:= cfg.DB.CreateChirps(ctx, database.CreateChirpsParams{
+		Body: cleanedBody,
+		UserID: req.UserID,
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "foregin key") {
+			respondWithError(w, http.StatusBadRequest, "Invalid user_id")
+		}
+		respondWithError(w, http.StatusInternalServerError, "Failed to create Chirp")
+	}
+
+	resp := ChirpsResponse{
+		ID: chirps.ID,
+		CreatedAt: chirps.CreatedAt.Format(time.RFC3339),
+		UpdatedAt: chirps.UpdatedAt.Format(time.RFC3339),
+		Body: chirps.Body,
+		UserID: chirps.UserID,
+	}
+	respondWithJSON(w, http.StatusCreated, resp)
+	
+
 
 }
 func cleanProfanity(s string) string {
@@ -210,6 +236,10 @@ func (cfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := context.Background()
+	if err := cfg.DB.DeleteAllChirps(ctx); err != nil {
+        respondWithError(w, http.StatusInternalServerError, "Failed to delete chirps")
+        return
+    }
 	if err := cfg.DB.DeleteAllUsers(ctx); err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to reset users")
 		return
@@ -281,7 +311,7 @@ func main() {
 	mux.HandleFunc("POST /admin/reset", apiCfg.handlerReset)
 
 	// Register /validate_chirp endpoint
-	mux.HandleFunc("POST /api/validate_chirp", apiCfg.handlerValidatecChirp)
+	mux.HandleFunc("POST /api/chirps", apiCfg.handlerCreateChirps)
 	mux.HandleFunc("POST /api/users", apiCfg.handlerCreateUser)
 
 	// Create a new Server with the mux as handler and address set to :8080
