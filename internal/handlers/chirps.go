@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"chirpy/internal/api"
+	"chirpy/internal/auth"
 	"chirpy/internal/database"
 	"chirpy/internal/logger"
 	"chirpy/internal/models"
@@ -25,6 +26,20 @@ func HandleCreateChirp(cfg *api.Config) http.HandlerFunc {
 
 		if r.Method != http.MethodPost {
 			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method Not Allowed")
+			return
+		}
+
+		tokenStr, err := auth.GetBearerToken(r.Header)
+		if err != nil {
+			logger.Logger.Warnw("Missing or malformed Authorization header",
+				"error", err,
+			)
+			utils.RespondWithError(w, http.StatusUnauthorized, "Missing or invalid Authorization header")
+			return
+		}
+		userID, err := auth.ValidateJWT(tokenStr, cfg.JWTSecret)
+		if err != nil {
+			utils.RespondWithError(w, http.StatusUnauthorized, "Invalid or expired token")
 			return
 		}
 
@@ -58,7 +73,7 @@ func HandleCreateChirp(cfg *api.Config) http.HandlerFunc {
 		ctx := context.Background()
 		chirp, err := cfg.DB.CreateChirps(ctx, database.CreateChirpsParams{
 			Body:   cleaned,
-			UserID: req.UserID,
+			UserID: userID,
 		})
 		if err != nil {
 			if strings.Contains(err.Error(), "foreign key") {

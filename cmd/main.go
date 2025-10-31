@@ -25,6 +25,11 @@ func main() {
 		logger.Logger.Fatal("DB_URL not set in environment")
 	}
 
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		logger.Logger.Fatal("JWT_SECRET is required in .env")
+	}
+
 	platform := os.Getenv("PLATFORM")
 
 	// Open DB
@@ -44,6 +49,7 @@ func main() {
 	cfg := &api.Config{
 		DB:       dbQueries,
 		Platform: platform,
+		JWTSecret: jwtSecret,
 	}
 
 	// Setup router

@@ -50,11 +50,30 @@ func HandleLogin(cfg *api.Config) http.HandlerFunc {
 			return
 		}
 
+		// Determine expiration
+		var expiresIn int64 = 3600 // default 1 hour
+		if req.ExpiresInSeconds != nil {
+			if *req.ExpiresInSeconds > 3600 {
+				expiresIn = 3600
+			} else if *req.ExpiresInSeconds > 0 {
+				expiresIn = int64(*req.ExpiresInSeconds)
+			}
+		}
+
+		// Generate JWT
+		tokenString, err := auth.MakeJWT(user.ID, cfg.JWTSecret, time.Duration(expiresIn)*time.Second)
+		if err != nil {
+			logger.Logger.Errorw("Token Creation failed","error", err)
+			utils.RespondWithError(w, http.StatusInternalServerError, "Failed to create token")
+			return
+		}
+
 		resp := models.LoginResponse{
 			ID:        user.ID,
 			Email:     user.Email,
 			CreatedAt: user.CreatedAt.Format(time.RFC3339),
 			UpdatedAt: user.UpdatedAt.Format(time.RFC3339),
+			Token:     tokenString,
 		}
 
 		logger.Logger.Infow("Login successful", "user_id", user.ID, "email", user.Email)

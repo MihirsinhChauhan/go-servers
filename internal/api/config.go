@@ -9,4 +9,5 @@ type Config struct {
 	FileserverHits atomic.Int32
 	DB             *database.Queries
 	Platform       string
+	JWTSecret	   string
 }

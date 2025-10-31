@@ -1,13 +1,15 @@
 package auth
 
 import (
+	"chirpy/internal/logger"
+	"errors"
+	"net/http"
+	"strings"
+	"time"
+
 	"github.com/alexedwards/argon2id"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
-	"time"
-	"net/http"
-	"strings"
-	"errors"
 )
 
 // HashPassword creates an Argon2id hash of the plain-text password.
@@ -34,33 +36,57 @@ func MakeJWT(userID uuid.UUID, tokenSecret string, expiresIn time.Duration) (str
 
 	return token.SignedString([]byte(tokenSecret))
 }
-
 func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error) {
 	claims := &jwt.RegisteredClaims{}
 
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (interface{}, error) {
+		// ---- 1. Verify signing method ----
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			logger.Logger.Errorw("invalid signing method",
+				"expected", "HMAC",
+				"got", t.Header["alg"],
+			)
 			return nil, jwt.ErrSignatureInvalid
 		}
 		return []byte(tokenSecret), nil
-
-	})
+	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
 
 	if err != nil {
+		// ---- 2. Log parsing/validation errors ----
+		// jwt-go classifies many errors – we log the root cause
+		logger.Logger.Errorw("jwt parsing failed",
+			"error", err,
+			"token_preview", truncateToken(tokenString),
+		)
 		return uuid.Nil, err
 	}
 
 	if !token.Valid {
-		return uuid.Nil, jwt.ErrTokenInvalidAudience
+		logger.Logger.Infow("jwt token is invalid (expired, malformed, etc.)",
+			"token_preview", truncateToken(tokenString),
+		)
+		return uuid.Nil, jwt.ErrTokenExpired
 	}
 
+	// ---- 3. Extract Subject (user ID) ----
 	userID, err := uuid.Parse(claims.Subject)
 	if err != nil {
+		logger.Logger.Errorw("subject claim is not a valid UUID",
+			"subject", claims.Subject,
+			"error", err,
+		)
 		return uuid.Nil, err
 	}
 
 	return userID, nil
+}
 
+// truncateToken returns first 12 chars of the token for safe logging.
+func truncateToken(token string) string {
+	if len(token) > 12 {
+		return token[:12] + "..."
+	}
+	return token
 }
 
 func GetBearerToken(headers http.Header) (string, error) {
