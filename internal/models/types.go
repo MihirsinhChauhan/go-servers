@@ -31,6 +31,18 @@ type LoginResponse struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
+type UpdateUserRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type UpdateUserResponse struct {
+	ID		uuid.UUID `json:"id"`
+	Email	string	  `json:"email"`
+	CreatedAt string  `json:"created_at"`
+	UpdatedAt string  `json:"updated_at"`
+}
+
 type ChirpRequest struct {
 	Body   string    `json:"body"`
 	UserID uuid.UUID `json:"user_id"`

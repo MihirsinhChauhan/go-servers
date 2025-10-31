@@ -93,3 +93,89 @@ func HandleCreateUser(cfg *api.Config) http.HandlerFunc {
 		utils.RespondWithJSON(w, http.StatusCreated, resp)
 	}
 }
+
+func HandleUpdateUser(cfg *api.Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// === 1. Extract and validate JWT ===
+		tokenStr, err := auth.GetBearerToken(r.Header)
+		if err != nil {
+			logger.Logger.Warnw("Missing or malformed Authorization header",
+				"error", err,
+				"path", r.URL.Path,
+			)
+			utils.RespondWithError(w, http.StatusUnauthorized, "Unauthorized")
+			return
+		}
+
+		userID, err := auth.ValidateJWT(tokenStr, cfg.JWTSecret)
+		if err != nil {
+			logger.Logger.Infow("Invalid or expired access token",
+				"error", err,
+				"token_preview", auth.TruncateToken(tokenStr),
+			)
+			utils.RespondWithError(w, http.StatusUnauthorized, "Unauthorized")
+			return
+		}
+
+		// === 2. Parse request body ===
+		var req models.UpdateUserRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			logger.Logger.Warnw("Invalid JSON payload for user update",
+				"error", err,
+			)
+			utils.RespondWithError(w, http.StatusBadRequest, "Invalid request payload")
+			return
+		}
+
+		// === 3. Validate fields ===
+		if req.Email == "" {
+			utils.RespondWithError(w, http.StatusBadRequest, "Email is required")
+			return
+		}
+		if req.Password == "" {
+			utils.RespondWithError(w, http.StatusBadRequest, "Password is required")
+			return
+		}
+
+
+		// === 4. Hash new password ===
+		hashedPassword, err := auth.HashPassword(req.Password)
+		if err != nil {
+			logger.Logger.Errorw("Failed to hash password", "error", err)
+			utils.RespondWithError(w, http.StatusInternalServerError, "Failed to update user")
+			return
+		}
+
+		// === 5. Update user in DB ===
+		ctx := r.Context()
+		updatedUser, err := cfg.DB.UpdateUser(ctx, database.UpdateUserParams{
+			ID:             userID,
+			Email:          req.Email,
+			HashedPassword: hashedPassword,
+		})
+		if err != nil {
+			logger.Logger.Errorw("Failed to update user in database",
+				"error", err,
+				"user_id", userID,
+			)
+			utils.RespondWithError(w, http.StatusInternalServerError, "Failed to update user")
+			return
+		}
+		// === 6. Build response (omit password) ===
+		resp := models.UpdateUserResponse{
+			ID:        updatedUser.ID,
+			Email:     updatedUser.Email,
+			CreatedAt: updatedUser.CreatedAt.Format(time.RFC3339),
+			UpdatedAt: updatedUser.UpdatedAt.Format(time.RFC3339),
+		}
+
+		// === 7. Log success ===
+		logger.Logger.Infow("User updated successfully",
+			"user_id", updatedUser.ID,
+			"new_email", updatedUser.Email,
+		)
+
+		utils.RespondWithJSON(w, http.StatusOK, resp)
+	
+	}
+}
