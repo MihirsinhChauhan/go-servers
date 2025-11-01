@@ -53,5 +53,3 @@ Detailed HTTP API documentation is in `./docs/API.md`.
 - Keep code style consistent with existing files.
 - Add unit tests for new behavior in `test/`.
 
-## License
-Add your license here.
