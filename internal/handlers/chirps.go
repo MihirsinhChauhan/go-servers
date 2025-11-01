@@ -123,13 +123,30 @@ func HandleGetAllChirps(cfg *api.Config) http.HandlerFunc {
 			return
 		}
 
+		authorIDStr := r.URL.Query().Get("author_id")
 		sortOrder := r.URL.Query().Get("sort")
 		if sortOrder == "" {
 			sortOrder = "asc"
 		}
 
+		
+
 		ctx := context.Background()
-		dbChirps, err := cfg.DB.GetAllChirps(ctx)
+
+		var dbChirps []database.Chirp
+		var err error
+		
+		if authorIDStr != "" {
+			authorID, errParse := uuid.Parse(authorIDStr)
+			if errParse != nil {
+				utils.RespondWithError(w, http.StatusBadRequest, "Invalid author_id")
+				return
+			}
+			dbChirps, err = cfg.DB.GetChirpsByAuthor(ctx, authorID)
+		} else {
+			dbChirps, err = cfg.DB.GetAllChirps(ctx)
+		}
+
 		if err != nil {
 			logger.Logger.Errorw("Failed to fetch chirps from DB",
 				"error", err,
