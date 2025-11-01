@@ -1,6 +1,6 @@
-# Chirpy — Lightweight Chirp Service
+# Chirpy — Twitter-like app server in Go
 
-> A small Go web service for posting short messages ("chirps"). This repository contains the server, SQL schema and queries (sqlc), generated DB bindings, utilities, and tests.
+> Chirpy is a Twitter-like app server written in Go for posting short messages ("chirps"). This repository contains the server, SQL schema and queries (sqlc), generated DB bindings, utilities, and tests.
 
 ## Quick links
 - Source: `cmd/main.go`
