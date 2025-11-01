@@ -15,6 +15,7 @@ type CreateUserResponse struct {
 	Email     string    `json:"email"`
 	CreatedAt string    `json:"created_at"`
 	UpdatedAt string    `json:"updated_at"`
+	IsChirpyRed bool      `json:"is_chirpy_red"`
 }
 
 type LoginRequest struct {
@@ -29,6 +30,7 @@ type LoginResponse struct {
 	UpdatedAt string    `json:"updated_at"`
 	Token 	  string    `json:"token"`
 	RefreshToken string `json:"refresh_token"`
+	IsChirpyRed bool      `json:"is_chirpy_red"`
 }
 
 type UpdateUserRequest struct {
@@ -41,6 +43,7 @@ type UpdateUserResponse struct {
 	Email	string	  `json:"email"`
 	CreatedAt string  `json:"created_at"`
 	UpdatedAt string  `json:"updated_at"`
+	IsChirpyRed bool      `json:"is_chirpy_red"`
 }
 
 type ChirpRequest struct {
@@ -58,4 +61,11 @@ type ChirpResponse struct {
 
 type ErrorResponse struct {
 	Error string `json:"error"`
+}
+
+type PolkaPayload struct {
+	Event string `json:"event"`
+	Data  struct {
+		UserID string `json:"user_id"`
+	} `json:"data"`
 }

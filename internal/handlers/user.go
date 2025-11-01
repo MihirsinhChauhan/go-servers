@@ -83,6 +83,7 @@ func HandleCreateUser(cfg *api.Config) http.HandlerFunc {
 			Email:     user.Email,
 			CreatedAt: user.CreatedAt.Format(time.RFC3339),
 			UpdatedAt: user.UpdatedAt.Format(time.RFC3339),
+			IsChirpyRed: user.IsChirpyRed,
 		}
 
 		logger.Logger.Infow("User created successfully",
@@ -147,7 +148,7 @@ func HandleUpdateUser(cfg *api.Config) http.HandlerFunc {
 		}
 
 		// === 5. Update user in DB ===
-		ctx := r.Context()
+		ctx := context.Background()
 		updatedUser, err := cfg.DB.UpdateUser(ctx, database.UpdateUserParams{
 			ID:             userID,
 			Email:          req.Email,
@@ -167,6 +168,7 @@ func HandleUpdateUser(cfg *api.Config) http.HandlerFunc {
 			Email:     updatedUser.Email,
 			CreatedAt: updatedUser.CreatedAt.Format(time.RFC3339),
 			UpdatedAt: updatedUser.UpdatedAt.Format(time.RFC3339),
+			IsChirpyRed: updatedUser.IsChirpyRed,
 		}
 
 		// === 7. Log success ===

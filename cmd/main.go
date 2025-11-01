@@ -32,6 +32,11 @@ func main() {
 
 	platform := os.Getenv("PLATFORM")
 
+	polkaKey := os.Getenv("POLKA_KEY")
+	if polkaKey == "" {
+		logger.Logger.Fatal("POLKA_KEY is required")
+	}
+
 	// Open DB
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
@@ -50,6 +55,7 @@ func main() {
 		DB:       dbQueries,
 		Platform: platform,
 		JWTSecret: jwtSecret,
+		PolkaKey: polkaKey,
 	}
 
 	// Setup router
@@ -80,6 +86,10 @@ func main() {
 	mux.HandleFunc("POST /api/chirps", handlers.HandleCreateChirp(cfg))
 	mux.HandleFunc("GET /api/chirps", handlers.HandleGetAllChirps(cfg))
 	mux.HandleFunc("GET /api/chirps/{chirpID}", handlers.HandleGetChirpByID(cfg))
+	mux.HandleFunc("DELETE /api/chirps/{chirpID}", handlers.HandleDeleteChirp(cfg))
+
+	// Webhook
+	mux.HandleFunc("POST /api/polka/webhooks", handlers.HandlePolkaWebhook(cfg))
 
 	// Start server
 	logger.Logger.Infow("Server starting", "port", 8080, "platform", platform)

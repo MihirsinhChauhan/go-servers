@@ -86,6 +86,7 @@ func HandleLogin(cfg *api.Config) http.HandlerFunc {
 			UpdatedAt: user.UpdatedAt.Format(time.RFC3339),
 			Token:     accessToken,
 			RefreshToken: refreshToken,
+			IsChirpyRed: user.IsChirpyRed,
 		}
 
 		logger.Logger.Infow("Login successful", "user_id", user.ID, "email", user.Email)

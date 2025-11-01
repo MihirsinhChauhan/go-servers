@@ -213,3 +213,96 @@ func HandleGetChirpByID(cfg *api.Config) http.HandlerFunc {
 		utils.RespondWithJSON(w, http.StatusOK, resp)
 	}
 }
+
+func HandleDeleteChirp(cfg *api.Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// === 1. Extract chirp ID from path ===
+		chirpIDStr := r.PathValue("chirpID")
+		if chirpIDStr == "" {
+			logger.Logger.Warnw("Missing chirp ID in path")
+			utils.RespondWithError(w, http.StatusBadRequest, "Missing chirp ID")
+			return
+		}
+
+		chirpID, err := uuid.Parse(chirpIDStr)
+		if err != nil {
+			logger.Logger.Warnw("Invalid chirp ID format",
+				"chirp_id", chirpIDStr,
+				"error", err,
+			)
+			utils.RespondWithError(w, http.StatusBadRequest, "Invalid chirp ID")
+			return
+		}
+
+		// === 2. Authenticate user via JWT ===
+		tokenStr, err := auth.GetBearerToken(r.Header)
+		if err != nil {
+			logger.Logger.Warnw("Missing or malformed Authorization header",
+				"error", err,
+			)
+			utils.RespondWithError(w, http.StatusUnauthorized, "Unauthorized")
+			return
+		}
+
+		userID, err := auth.ValidateJWT(tokenStr, cfg.JWTSecret)
+		if err != nil {
+			logger.Logger.Infow("Invalid or expired access token",
+				"error", err,
+				"token_preview", auth.TruncateToken(tokenStr),
+			)
+			utils.RespondWithError(w, http.StatusUnauthorized, "Unauthorized")
+			return
+		}
+
+		// === 3. Fetch chirp with author info ===
+		ctx := context.Background()
+		chirp, err := cfg.DB.GetChirpByID(ctx, chirpID)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				logger.Logger.Infow("Chirp not found for deletion",
+					"chirp_id", chirpID,
+					"user_id", userID,
+				)
+				utils.RespondWithError(w, http.StatusNotFound, "Chirp not found")
+				return
+			}
+			logger.Logger.Errorw("Database error fetching chirp",
+				"chirp_id", chirpID,
+				"error", err,
+			)
+			utils.RespondWithError(w, http.StatusInternalServerError, "Failed to delete chirp")
+			return
+		}
+
+		// === 4. Authorization: Only author can delete ===
+		if chirp.UserID != userID {
+			logger.Logger.Warnw("User attempted to delete another user's chirp",
+				"chirp_id", chirp.ID,
+				"requesting_user_id", userID,
+				"chirp_owner_id", chirp.UserID,
+			)
+			utils.RespondWithError(w, http.StatusForbidden, "You are not the author of this chirp")
+			return
+		}
+
+		// === 5. Delete chirp ===
+		err = cfg.DB.DeleteChirp(ctx, chirpID)
+		if err != nil {
+			logger.Logger.Errorw("Failed to delete chirp from database",
+				"chirp_id", chirpID,
+				"user_id", userID,
+				"error", err,
+			)
+			utils.RespondWithError(w, http.StatusInternalServerError, "Failed to delete chirp")
+			return
+		}
+
+		// === 6. Success: 204 No Content ===
+		logger.Logger.Infow("Chirp deleted successfully",
+			"chirp_id", chirpID,
+			"user_id", userID,
+		)
+
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
